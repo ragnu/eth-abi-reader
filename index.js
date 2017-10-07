@@ -82,7 +82,46 @@ function decodeMethod(data) {
 }
 
 function decodeLogs(logs) {
-  //
+  return logs.map(logItem => {
+    const methodId = logItem.topics[0].slice(2)
+    const method = state.methodIds[methodId]
+    if (method) {
+      const logData = logItem.data
+      const decodedParams = []
+      let dataIndex = 0
+      let topicsIndex = 1
+      const dataTypes = method.inputs.map(input => {
+        if (!input.indexed) return input.type
+      })
+      const decodedData = SolidityCoder.decodeParams(dataTypes, logData.slice(2))
+      method.inputs.map(input => {
+        const decodedInput = {
+          name: input.name,
+          type: input.type
+        }
+        if (input.indexed) {
+          decodedInput.value = logItem.topics[topicsIndex]
+          topicsIndex++
+        } else {
+          decodedInput.value = decodedData[dataIndex]
+          dataIndex++
+        }
+        if (input.type === 'address') {
+          decodedInput.value = padZeroes(new Web3().toBigNumber(decodedInput.value).toString(16))
+        } else if (input.type === 'uint256' || input.type === 'uint8' || input.type === 'int') {
+          decodedInput.value = new Web3().toBigNumber(decodedInput.value).toString(10)
+        }
+        decodedParams.push(decodedInput)
+      })
+      return {
+        name: method.name,
+        events: decodedParams,
+        address: logItem.address
+      }
+    } else {
+      return {}
+    }
+  })
 }
 
 module.exports = {
